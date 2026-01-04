@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Plus, Warehouse, Settings2, FileSpreadsheet, ChevronRight, Calendar } from "lucide-react";
+import { SalarySlipModal } from "@/components/SalarySlipModal";
+import { Users, Plus, Warehouse, Settings2, FileSpreadsheet, ChevronRight, Calendar, Receipt } from "lucide-react";
 
 // Mock data - replace with API calls
 const mockWorkers = [{
@@ -42,10 +43,41 @@ const mockSheds = [{
     loom_number: "3"
   }]
 }];
+
+// Mock salary data generator
+const generateMockSalaryData = (workerId: number, startDate: string, endDate: string) => {
+  const looms = ["A1", "A2", "B1", "B2", "B3"];
+  const details: Array<{ date: string; loom: string; meters: number; loom_id: string }> = [];
+  
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    // Random 1-3 looms worked per day
+    const loomsWorked = looms.slice(0, Math.floor(Math.random() * 3) + 1);
+    loomsWorked.forEach((loom, idx) => {
+      details.push({
+        date: d.toISOString().split("T")[0],
+        loom,
+        meters: Math.round((Math.random() * 50 + 20) * 10) / 10,
+        loom_id: `loom_${idx}`
+      });
+    });
+  }
+  
+  const totalMeters = details.reduce((sum, d) => sum + d.meters, 0);
+  const ratePerMeter = 2.5; // Mock rate
+  
+  return {
+    details,
+    summary: {
+      total_meters: totalMeters,
+      total_salary: totalMeters * ratePerMeter
+    }
+  };
+};
 export default function Dashboard() {
-  const {
-    toast
-  } = useToast();
+  const { toast } = useToast();
   const [workers, setWorkers] = useState(mockWorkers);
   const [sheds, setSheds] = useState(mockSheds);
 
@@ -60,6 +92,41 @@ export default function Dashboard() {
     return firstDay.toISOString().split("T")[0];
   });
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split("T")[0]);
+
+  // Salary slip modal state
+  const [slipModalOpen, setSlipModalOpen] = useState(false);
+  const [selectedWorkerForSlip, setSelectedWorkerForSlip] = useState<{ id: number; name: string } | null>(null);
+  const [salaryData, setSalaryData] = useState<{
+    details: Array<{ date: string; loom: string; meters: number; loom_id: string }>;
+    summary: { total_meters: number; total_salary: number };
+  } | null>(null);
+
+  const generateSlip = (workerId: number, workerName: string) => {
+    if (!startDate || !endDate) {
+      toast({
+        title: "Error",
+        description: "Please select Start and End dates first.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Mock API call - replace with actual fetch
+    const data = generateMockSalaryData(workerId, startDate, endDate);
+    
+    if (!data.details || data.details.length === 0) {
+      toast({
+        title: "No Records",
+        description: "No records found for this period.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSalaryData(data);
+    setSelectedWorkerForSlip({ id: workerId, name: workerName });
+    setSlipModalOpen(true);
+  };
   const addWorker = () => {
     if (!workerName.trim()) {
       toast({
@@ -172,12 +239,18 @@ export default function Dashboard() {
 
           <div className="border-t pt-4">
             <ul className="space-y-1 max-h-64 overflow-y-auto">
-              {workers.map(w => <li key={w.id} className="flex justify-between items-center py-2.5 px-3 rounded-lg hover:bg-accent cursor-pointer group transition-colors">
+              {workers.map(w => (
+                <li 
+                  key={w.id} 
+                  onClick={() => generateSlip(w.id, w.name)}
+                  className="flex justify-between items-center py-2.5 px-3 rounded-lg hover:bg-accent cursor-pointer group transition-colors"
+                >
                   <span className="font-medium text-foreground">{w.name}</span>
                   <span className="text-xs text-primary font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                    VIEW SLIP <ChevronRight className="w-3 h-3" />
+                    <Receipt className="w-3 h-3" /> VIEW SLIP <ChevronRight className="w-3 h-3" />
                   </span>
-                </li>)}
+                </li>
+              ))}
             </ul>
           </div>
         </div>
@@ -273,5 +346,18 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Salary Slip Modal */}
+      {selectedWorkerForSlip && salaryData && (
+        <SalarySlipModal
+          isOpen={slipModalOpen}
+          onClose={() => setSlipModalOpen(false)}
+          workerName={selectedWorkerForSlip.name}
+          startDate={startDate}
+          endDate={endDate}
+          details={salaryData.details}
+          summary={salaryData.summary}
+        />
+      )}
     </div>;
 }
