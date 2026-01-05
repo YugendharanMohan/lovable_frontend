@@ -1,14 +1,12 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Printer, X } from "lucide-react";
-
+import { Printer } from "lucide-react";
 interface SalaryRecord {
   date: string;
   loom: string;
   meters: number;
   loom_id: string;
 }
-
 interface SalarySlipProps {
   isOpen: boolean;
   onClose: () => void;
@@ -21,7 +19,6 @@ interface SalarySlipProps {
     total_salary: number;
   };
 }
-
 export const SalarySlipModal = ({
   isOpen,
   onClose,
@@ -29,29 +26,26 @@ export const SalarySlipModal = ({
   startDate,
   endDate,
   details,
-  summary,
+  summary
 }: SalarySlipProps) => {
-  const uniqueDates = [...new Set(details.map((d) => d.date))].sort(
-    (a, b) => new Date(a).getTime() - new Date(b).getTime()
-  );
-
-  const uniqueLooms = [...new Set(details.map((d) => d.loom))].sort((a, b) =>
-    a.localeCompare(b, undefined, { numeric: true })
-  );
+  const uniqueDates = [...new Set(details.map(d => d.date))].sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+  const uniqueLooms = [...new Set(details.map(d => d.loom))].sort((a, b) => a.localeCompare(b, undefined, {
+    numeric: true
+  }));
 
   // Initialize date map
   const dateMap: Record<string, Record<string, number>> = {};
-  uniqueDates.forEach((date) => {
+  uniqueDates.forEach(date => {
     dateMap[date] = {};
-    uniqueLooms.forEach((loom) => (dateMap[date][loom] = 0));
+    uniqueLooms.forEach(loom => dateMap[date][loom] = 0);
   });
 
   // Initialize loom totals
   const loomTotals: Record<string, number> = {};
-  uniqueLooms.forEach((loom) => (loomTotals[loom] = 0));
+  uniqueLooms.forEach(loom => loomTotals[loom] = 0);
 
   // Fill values
-  details.forEach((rec) => {
+  details.forEach(rec => {
     const meters = rec.meters || 0;
     if (dateMap[rec.date] && dateMap[rec.date][rec.loom] !== undefined) {
       dateMap[rec.date][rec.loom] += meters;
@@ -60,22 +54,17 @@ export const SalarySlipModal = ({
       loomTotals[rec.loom] += meters;
     }
   });
-
   const totalMeters = summary.total_meters || 0;
   const totalSalary = summary.total_salary || 0;
   const avgRate = totalMeters > 0 ? totalSalary / totalMeters : 0;
-
   const handlePrint = () => {
     window.print();
   };
-
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
     return `${d.getDate()}/${d.getMonth() + 1}`;
   };
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+  return <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto print:max-w-full print:max-h-full print:overflow-visible">
         <DialogHeader className="print:hidden">
           <DialogTitle className="flex items-center justify-between">
@@ -86,7 +75,7 @@ export const SalarySlipModal = ({
                 Print
               </Button>
               <Button variant="ghost" size="sm" onClick={onClose}>
-                <X className="h-4 w-4" />
+                
               </Button>
             </div>
           </DialogTitle>
@@ -95,62 +84,51 @@ export const SalarySlipModal = ({
         {/* Printable Content */}
         <div className="salary-slip-content p-4">
           {/* Header */}
-          <div className="text-center mb-6 border-b-2 border-primary pb-4">
-            <h1 className="text-2xl font-bold text-primary">ASM BILLING SYSTEM</h1>
-            <h2 className="text-lg font-semibold mt-2">SALARY SLIP</h2>
-          </div>
+          
 
           {/* Worker Info */}
           <div className="grid grid-cols-2 gap-4 mb-6 bg-muted/50 p-4 rounded-lg">
             <div>
-              <span className="font-semibold text-muted-foreground">Worker Name:</span>
+              
               <span className="ml-2 font-bold text-foreground">{workerName}</span>
             </div>
             <div>
-              <span className="font-semibold text-muted-foreground">Period:</span>
+              <span className="font-semibold text-muted-foreground">PERIOD:</span>
               <span className="ml-2 font-bold text-foreground">{startDate} to {endDate}</span>
             </div>
           </div>
 
           {/* Production Grid */}
           <div className="mb-6 overflow-x-auto">
-            <h3 className="font-semibold mb-2 text-foreground">Daily Production (Meters)</h3>
+            
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>
                   <th className="p-2 border border-border bg-muted font-bold">DATE</th>
-                  {uniqueLooms.map((loom) => (
-                    <th key={loom} className="p-2 border border-border bg-muted font-bold">
+                  {uniqueLooms.map(loom => <th key={loom} className="p-2 border border-border bg-muted font-bold">
                       {loom}
-                    </th>
-                  ))}
+                    </th>)}
                 </tr>
               </thead>
               <tbody>
-                {uniqueDates.map((date) => (
-                  <tr key={date}>
+                {uniqueDates.map(date => <tr key={date}>
                     <td className="p-2 border border-border font-bold bg-muted/50">
                       {formatDate(date)}
                     </td>
-                    {uniqueLooms.map((loom) => {
-                      const val = dateMap[date][loom];
-                      return (
-                        <td key={loom} className="p-2 border border-border text-center">
+                    {uniqueLooms.map(loom => {
+                  const val = dateMap[date][loom];
+                  return <td key={loom} className="p-2 border border-border text-center">
                           {val > 0 ? val.toFixed(1) : "-"}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                        </td>;
+                })}
+                  </tr>)}
               </tbody>
               <tfoot>
                 <tr className="bg-muted font-bold">
                   <td className="p-2 border border-border">TOTAL</td>
-                  {uniqueLooms.map((loom) => (
-                    <td key={loom} className="p-2 border border-border text-center">
+                  {uniqueLooms.map(loom => <td key={loom} className="p-2 border border-border text-center">
                       {loomTotals[loom].toFixed(1)}
-                    </td>
-                  ))}
+                    </td>)}
                 </tr>
               </tfoot>
             </table>
@@ -160,24 +138,22 @@ export const SalarySlipModal = ({
           <div className="grid grid-cols-2 gap-6">
             {/* Loom Summary */}
             <div>
-              <h3 className="font-semibold mb-2 text-foreground">Loom-wise Summary</h3>
+              
               <table className="w-full border-collapse text-sm">
                 <tbody>
-                  {uniqueLooms.map((loom) => (
-                    <tr key={loom}>
+                  {uniqueLooms.map(loom => <tr key={loom}>
                       <td className="border border-border p-2 font-bold">{loom}</td>
                       <td className="border border-border p-2 text-right">
                         {loomTotals[loom].toFixed(1)} m
                       </td>
-                    </tr>
-                  ))}
+                    </tr>)}
                 </tbody>
               </table>
             </div>
 
             {/* Grand Totals */}
             <div className="bg-primary/10 p-4 rounded-lg">
-              <h3 className="font-semibold mb-4 text-foreground">Payment Summary</h3>
+              
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Total Meters:</span>
@@ -201,6 +177,5 @@ export const SalarySlipModal = ({
           </div>
         </div>
       </DialogContent>
-    </Dialog>
-  );
+    </Dialog>;
 };
