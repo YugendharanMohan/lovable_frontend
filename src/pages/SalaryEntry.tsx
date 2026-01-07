@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { workersApi, shedsApi, productionApi, Worker, Shed } from "@/lib/api";
 import {
   ArrowLeft,
   Calendar,
@@ -15,60 +16,133 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
-// Mock data - replace with API calls
-const mockWorkers = [
-  { id: 1, name: "Rajesh Kumar" },
-  { id: 2, name: "Mohammed Ali" },
-  { id: 3, name: "Suresh Patel" },
-  { id: 4, name: "Anil Sharma" },
-];
-
-const mockSheds = [
-  { id: 1, name: "A", looms: [{ id: 1, loom_number: "1" }, { id: 2, loom_number: "2" }] },
-  { id: 2, name: "B", looms: [{ id: 3, loom_number: "1" }, { id: 4, loom_number: "2" }, { id: 5, loom_number: "3" }] },
-];
-
 interface FormData {
   date: string;
   shift: "Day" | "Night";
   worker_id: string;
   loom_id: string;
+  shed_name: string;
+  loom_number: string;
   meters: string;
   rate: string;
 }
 
 export default function SalaryEntry() {
   const { toast } = useToast();
+  const [workers, setWorkers] = useState<Worker[]>([]);
+  const [sheds, setSheds] = useState<Shed[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [formData, setFormData] = useState<FormData>({
     date: new Date().toISOString().split("T")[0],
     shift: "Day",
     worker_id: "",
     loom_id: "",
+    shed_name: "",
+    loom_number: "",
     meters: "",
     rate: "",
   });
+
+  // Fetch workers and sheds on mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        const [workersData, shedsData] = await Promise.all([
+          workersApi.getAll(),
+          shedsApi.getHierarchy(),
+        ]);
+        setWorkers(workersData);
+        setSheds(shedsData);
+      } catch (error) {
+        console.error("Failed to fetch data:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load data. Check your connection.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [toast]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { id, value } = e.target;
     setFormData((prev) => ({ ...prev, [id]: value }));
   };
 
+  const handleLoomChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const loomId = e.target.value;
+    
+    // Find the shed and loom details
+    let shedName = "";
+    let loomNumber = "";
+    
+    for (const shed of sheds) {
+      const loom = shed.looms.find((l) => l.id === loomId);
+      if (loom) {
+        shedName = shed.name;
+        loomNumber = loom.loom_number;
+        break;
+      }
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      loom_id: loomId,
+      shed_name: shedName,
+      loom_number: loomNumber,
+    }));
+  };
+
   const submitEntry = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    
+    if (!formData.worker_id || !formData.loom_id || !formData.meters || !formData.rate) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      setIsSubmitting(true);
+      
+      await productionApi.add({
+        worker_id: formData.worker_id,
+        loom_id: formData.loom_id,
+        shed_name: formData.shed_name,
+        loom_number: formData.loom_number,
+        date: formData.date,
+        shift: formData.shift,
+        meters: parseFloat(formData.meters),
+        rate: parseFloat(formData.rate),
+      });
 
-    toast({
-      title: "Entry Saved Successfully!",
-      description: `${formData.meters} meters recorded for the ${formData.shift} shift.`,
-    });
+      toast({
+        title: "Entry Saved Successfully!",
+        description: `${formData.meters} meters recorded for the ${formData.shift} shift.`,
+      });
 
-    // Clear meters for next entry
-    setFormData((prev) => ({ ...prev, meters: "" }));
-    setIsSubmitting(false);
+      // Clear meters for next entry
+      setFormData((prev) => ({ ...prev, meters: "" }));
+    } catch (error) {
+      console.error("Failed to submit entry:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save entry.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const calculateTotal = () => {
@@ -76,6 +150,14 @@ export default function SalaryEntry() {
     const rate = parseFloat(formData.rate) || 0;
     return (meters * rate).toFixed(2);
   };
+
+  if (isLoading) {
+    return (
+      <div className="pt-28 md:pt-20 pb-8 px-4 min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="pt-28 md:pt-20 pb-8 px-4 min-h-screen flex items-start md:items-center justify-center">
@@ -141,7 +223,7 @@ export default function SalaryEntry() {
                 className="form-field"
               >
                 <option value="">Select Worker</option>
-                {mockWorkers.map((w) => (
+                {workers.map((w) => (
                   <option key={w.id} value={w.id}>
                     {w.name}
                   </option>
@@ -157,12 +239,12 @@ export default function SalaryEntry() {
               <select
                 id="loom_id"
                 value={formData.loom_id}
-                onChange={handleInputChange}
+                onChange={handleLoomChange}
                 required
                 className="form-field"
               >
                 <option value="">Select Loom</option>
-                {mockSheds.map((shed) => (
+                {sheds.map((shed) => (
                   <optgroup key={shed.id} label={`Shed ${shed.name}`}>
                     {shed.looms.map((loom) => (
                       <option key={loom.id} value={loom.id}>
@@ -213,9 +295,7 @@ export default function SalaryEntry() {
               <div className="p-4 bg-accent rounded-lg border border-primary/20 animate-scale-in">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Calculated Amount</span>
-                  <span className="text-xl font-bold text-primary">
-                    ₹{calculateTotal()}
-                  </span>
+                  <span className="text-xl font-bold text-primary">₹{calculateTotal()}</span>
                 </div>
               </div>
             )}

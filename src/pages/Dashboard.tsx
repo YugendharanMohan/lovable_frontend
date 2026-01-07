@@ -1,91 +1,34 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { SalarySlipModal } from "@/components/SalarySlipModal";
-import { Users, Plus, Warehouse, Settings2, FileSpreadsheet, ChevronRight, Calendar, Receipt } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { workersApi, shedsApi, salaryApi, Worker, Shed, SalaryResponse } from "@/lib/api";
+import { 
+  Users, Plus, Warehouse, Settings2, FileSpreadsheet, ChevronRight, 
+  Calendar, Receipt, Loader2 
+} from "lucide-react";
 
-// Mock data - replace with API calls
-const mockWorkers = [{
-  id: 1,
-  name: "Rajesh Kumar"
-}, {
-  id: 2,
-  name: "Mohammed Ali"
-}, {
-  id: 3,
-  name: "Suresh Patel"
-}, {
-  id: 4,
-  name: "Anil Sharma"
-}];
-const mockSheds = [{
-  id: 1,
-  name: "A",
-  looms: [{
-    id: 1,
-    loom_number: "1"
-  }, {
-    id: 2,
-    loom_number: "2"
-  }]
-}, {
-  id: 2,
-  name: "B",
-  looms: [{
-    id: 3,
-    loom_number: "1"
-  }, {
-    id: 4,
-    loom_number: "2"
-  }, {
-    id: 5,
-    loom_number: "3"
-  }]
-}];
-
-// Mock salary data generator
-const generateMockSalaryData = (workerId: number, startDate: string, endDate: string) => {
-  const looms = ["A1", "A2", "B1", "B2", "B3"];
-  const details: Array<{ date: string; loom: string; meters: number; loom_id: string }> = [];
-  
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    // Random 1-3 looms worked per day
-    const loomsWorked = looms.slice(0, Math.floor(Math.random() * 3) + 1);
-    loomsWorked.forEach((loom, idx) => {
-      details.push({
-        date: d.toISOString().split("T")[0],
-        loom,
-        meters: Math.round((Math.random() * 50 + 20) * 10) / 10,
-        loom_id: `loom_${idx}`
-      });
-    });
-  }
-  
-  const totalMeters = details.reduce((sum, d) => sum + d.meters, 0);
-  const ratePerMeter = 2.5; // Mock rate
-  
-  return {
-    details,
-    summary: {
-      total_meters: totalMeters,
-      total_salary: totalMeters * ratePerMeter
-    }
-  };
-};
 export default function Dashboard() {
   const { toast } = useToast();
-  const [workers, setWorkers] = useState(mockWorkers);
-  const [sheds, setSheds] = useState(mockSheds);
+  const { isAdmin } = useAuth();
+  
+  // Data states
+  const [workers, setWorkers] = useState<Worker[]>([]);
+  const [sheds, setSheds] = useState<Shed[]>([]);
+  const [isLoadingWorkers, setIsLoadingWorkers] = useState(true);
+  const [isLoadingSheds, setIsLoadingSheds] = useState(true);
 
   // Form states
   const [workerName, setWorkerName] = useState("");
   const [shedName, setShedName] = useState("");
   const [selectedShed, setSelectedShed] = useState("");
   const [loomNum, setLoomNum] = useState("");
+  const [isAddingWorker, setIsAddingWorker] = useState(false);
+  const [isAddingShed, setIsAddingShed] = useState(false);
+  const [isAddingLoom, setIsAddingLoom] = useState(false);
+
   const [startDate, setStartDate] = useState(() => {
     const today = new Date();
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -95,107 +38,193 @@ export default function Dashboard() {
 
   // Salary slip modal state
   const [slipModalOpen, setSlipModalOpen] = useState(false);
-  const [selectedWorkerForSlip, setSelectedWorkerForSlip] = useState<{ id: number; name: string } | null>(null);
-  const [salaryData, setSalaryData] = useState<{
-    details: Array<{ date: string; loom: string; meters: number; loom_id: string }>;
-    summary: { total_meters: number; total_salary: number };
-  } | null>(null);
+  const [selectedWorkerForSlip, setSelectedWorkerForSlip] = useState<{ id: string; name: string } | null>(null);
+  const [salaryData, setSalaryData] = useState<SalaryResponse | null>(null);
+  const [isLoadingSlip, setIsLoadingSlip] = useState(false);
 
-  const generateSlip = (workerId: number, workerName: string) => {
+  // Fetch data on mount
+  useEffect(() => {
+    fetchWorkers();
+    fetchSheds();
+  }, []);
+
+  const fetchWorkers = async () => {
+    try {
+      setIsLoadingWorkers(true);
+      const data = await workersApi.getAll();
+      setWorkers(data);
+    } catch (error) {
+      console.error("Failed to fetch workers:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load workers. Check your connection.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingWorkers(false);
+    }
+  };
+
+  const fetchSheds = async () => {
+    try {
+      setIsLoadingSheds(true);
+      const data = await shedsApi.getHierarchy();
+      setSheds(data);
+    } catch (error) {
+      console.error("Failed to fetch sheds:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load sheds. Check your connection.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingSheds(false);
+    }
+  };
+
+  const generateSlip = async (workerId: string, workerName: string) => {
     if (!startDate || !endDate) {
       toast({
         title: "Error",
         description: "Please select Start and End dates first.",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
 
-    // Mock API call - replace with actual fetch
-    const data = generateMockSalaryData(workerId, startDate, endDate);
-    
-    if (!data.details || data.details.length === 0) {
+    try {
+      setIsLoadingSlip(true);
+      const data = await salaryApi.calculate(workerId, startDate, endDate);
+      
+      if (!data.details || data.details.length === 0) {
+        toast({
+          title: "No Records",
+          description: "No records found for this period.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setSalaryData(data);
+      setSelectedWorkerForSlip({ id: workerId, name: workerName });
+      setSlipModalOpen(true);
+    } catch (error) {
+      console.error("Failed to calculate salary:", error);
       toast({
-        title: "No Records",
-        description: "No records found for this period.",
-        variant: "destructive"
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to fetch salary data.",
+        variant: "destructive",
       });
-      return;
+    } finally {
+      setIsLoadingSlip(false);
     }
-
-    setSalaryData(data);
-    setSelectedWorkerForSlip({ id: workerId, name: workerName });
-    setSlipModalOpen(true);
   };
-  const addWorker = () => {
+
+  const addWorker = async () => {
     if (!workerName.trim()) {
       toast({
         title: "Error",
         description: "Enter worker name",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
-    const newWorker = {
-      id: Date.now(),
-      name: workerName
-    };
-    setWorkers([...workers, newWorker]);
-    setWorkerName("");
-    toast({
-      title: "Success",
-      description: "Worker added successfully"
-    });
+
+    try {
+      setIsAddingWorker(true);
+      const newWorker = await workersApi.create({ name: workerName });
+      setWorkers([...workers, newWorker]);
+      setWorkerName("");
+      toast({
+        title: "Success",
+        description: "Worker added successfully",
+      });
+    } catch (error) {
+      console.error("Failed to add worker:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to add worker",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAddingWorker(false);
+    }
   };
-  const addShed = () => {
+
+  const addShed = async () => {
     if (!shedName.trim()) {
       toast({
         title: "Error",
         description: "Enter shed name",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
-    const newShed = {
-      id: Date.now(),
-      name: shedName,
-      looms: []
-    };
-    setSheds([...sheds, newShed]);
-    setShedName("");
-    toast({
-      title: "Success",
-      description: "Shed added successfully"
-    });
+
+    try {
+      setIsAddingShed(true);
+      const newShed = await shedsApi.createShed(shedName);
+      setSheds([...sheds, { ...newShed, looms: [] }]);
+      setShedName("");
+      toast({
+        title: "Success",
+        description: "Shed added successfully",
+      });
+    } catch (error) {
+      console.error("Failed to add shed:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to add shed",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAddingShed(false);
+    }
   };
-  const addLoom = () => {
+
+  const addLoom = async () => {
     if (!selectedShed || !loomNum.trim()) {
       toast({
         title: "Error",
         description: "Select shed and enter loom number",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
-    setSheds(sheds.map(shed => {
-      if (shed.id === parseInt(selectedShed)) {
-        return {
-          ...shed,
-          looms: [...shed.looms, {
-            id: Date.now(),
-            loom_number: loomNum
-          }]
-        };
-      }
-      return shed;
-    }));
-    setLoomNum("");
-    toast({
-      title: "Success",
-      description: "Loom added to shed"
-    });
+
+    try {
+      setIsAddingLoom(true);
+      const newLoom = await shedsApi.createLoom(selectedShed, loomNum);
+      setSheds(
+        sheds.map((shed) => {
+          if (shed.id === selectedShed) {
+            return {
+              ...shed,
+              looms: [...shed.looms, newLoom],
+            };
+          }
+          return shed;
+        })
+      );
+      setLoomNum("");
+      toast({
+        title: "Success",
+        description: "Loom added to shed",
+      });
+    } catch (error) {
+      console.error("Failed to add loom:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to add loom",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAddingLoom(false);
+    }
   };
-  return <div className="pt-28 md:pt-20 pb-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+
+  return (
+    <div className="pt-28 md:pt-20 pb-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
         <p className="text-muted-foreground text-sm mt-1">Manage workers, sheds, and looms</p>
@@ -203,9 +232,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Workers Section */}
-        <div className="card-elevated p-6 animate-slide-up" style={{
-        animationDelay: "0.1s"
-      }}>
+        <div className="card-elevated p-6 animate-slide-up" style={{ animationDelay: "0.1s" }}>
           <div className="flex items-center gap-3 mb-5">
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
               <Users className="w-5 h-5 text-primary" />
@@ -219,100 +246,178 @@ export default function Dashboard() {
                 <label className="form-label flex items-center gap-1">
                   <Calendar className="w-3 h-3" /> Start Date
                 </label>
-                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="form-field text-sm" />
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="form-field text-sm"
+                />
               </div>
               <div>
                 <label className="form-label flex items-center gap-1">
                   <Calendar className="w-3 h-3" /> End Date
                 </label>
-                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="form-field text-sm" />
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="form-field text-sm"
+                />
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <input value={workerName} onChange={e => setWorkerName(e.target.value)} placeholder="New Worker Name" className="form-field flex-grow" onKeyDown={e => e.key === "Enter" && addWorker()} />
-              <Button onClick={addWorker} size="icon">
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
+            {isAdmin && (
+              <div className="flex gap-2">
+                <input
+                  value={workerName}
+                  onChange={(e) => setWorkerName(e.target.value)}
+                  placeholder="New Worker Name"
+                  className="form-field flex-grow"
+                  onKeyDown={(e) => e.key === "Enter" && addWorker()}
+                  disabled={isAddingWorker}
+                />
+                <Button onClick={addWorker} size="icon" disabled={isAddingWorker}>
+                  {isAddingWorker ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="border-t pt-4">
-            <ul className="space-y-1 max-h-64 overflow-y-auto">
-              {workers.map(w => (
-                <li 
-                  key={w.id} 
-                  onClick={() => generateSlip(w.id, w.name)}
-                  className="flex justify-between items-center py-2.5 px-3 rounded-lg hover:bg-accent cursor-pointer group transition-colors"
-                >
-                  <span className="font-medium text-foreground">{w.name}</span>
-                  <span className="text-xs text-primary font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                    <Receipt className="w-3 h-3" /> VIEW SLIP <ChevronRight className="w-3 h-3" />
-                  </span>
-                </li>
-              ))}
-            </ul>
+            {isLoadingWorkers ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            ) : (
+              <ul className="space-y-1 max-h-64 overflow-y-auto">
+                {workers.map((w) => (
+                  <li
+                    key={w.id}
+                    onClick={() => generateSlip(w.id, w.name)}
+                    className="flex justify-between items-center py-2.5 px-3 rounded-lg hover:bg-accent cursor-pointer group transition-colors"
+                  >
+                    <span className="font-medium text-foreground">{w.name}</span>
+                    <span className="text-xs text-primary font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                      {isLoadingSlip ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <>
+                          <Receipt className="w-3 h-3" /> VIEW SLIP <ChevronRight className="w-3 h-3" />
+                        </>
+                      )}
+                    </span>
+                  </li>
+                ))}
+                {workers.length === 0 && (
+                  <li className="text-center py-4 text-muted-foreground text-sm">
+                    No workers found
+                  </li>
+                )}
+              </ul>
+            )}
           </div>
         </div>
 
         {/* Loom Configuration Section */}
-        <div className="card-elevated p-6 animate-slide-up" style={{
-        animationDelay: "0.2s"
-      }}>
+        <div className="card-elevated p-6 animate-slide-up" style={{ animationDelay: "0.2s" }}>
           <div className="flex items-center gap-3 mb-5">
             <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
               <Settings2 className="w-5 h-5 text-secondary-foreground" />
             </div>
-            <h2 className="font-bold text-lg text-foreground">Sheds & Looms </h2>
+            <h2 className="font-bold text-lg text-foreground">Sheds & Looms</h2>
           </div>
 
           <div className="space-y-4">
-            {/* Add Shed */}
-            <div>
-              <label className="form-label">Add New Shed</label>
-              <div className="flex gap-2">
-                <input value={shedName} onChange={e => setShedName(e.target.value)} placeholder="Shed Name (A, B...)" className="form-field flex-grow" onKeyDown={e => e.key === "Enter" && addShed()} />
-                <Button onClick={addShed} variant="secondary">
-                  Add
+            {/* Add Shed - Admin Only */}
+            {isAdmin && (
+              <div>
+                <label className="form-label">Add New Shed</label>
+                <div className="flex gap-2">
+                  <input
+                    value={shedName}
+                    onChange={(e) => setShedName(e.target.value)}
+                    placeholder="Shed Name (A, B...)"
+                    className="form-field flex-grow"
+                    onKeyDown={(e) => e.key === "Enter" && addShed()}
+                    disabled={isAddingShed}
+                  />
+                  <Button onClick={addShed} variant="secondary" disabled={isAddingShed}>
+                    {isAddingShed ? <Loader2 className="w-4 h-4 animate-spin" /> : "Add"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Add Loom to Shed - Admin Only */}
+            {isAdmin && (
+              <div className="border-t pt-4">
+                <label className="form-label">Add Loom to Shed</label>
+                <select
+                  value={selectedShed}
+                  onChange={(e) => setSelectedShed(e.target.value)}
+                  className="form-field mb-2"
+                  disabled={isAddingLoom}
+                >
+                  <option value="">Select Shed</option>
+                  {sheds.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      Shed {s.name}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={loomNum}
+                  onChange={(e) => setLoomNum(e.target.value)}
+                  placeholder="Loom Number"
+                  className="form-field mb-2"
+                  onKeyDown={(e) => e.key === "Enter" && addLoom()}
+                  disabled={isAddingLoom}
+                />
+                <Button onClick={addLoom} className="w-full" disabled={isAddingLoom}>
+                  {isAddingLoom ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Warehouse className="w-4 h-4" />
+                      Add Loom to Shed
+                    </>
+                  )}
                 </Button>
               </div>
-            </div>
-
-            {/* Add Loom to Shed */}
-            <div className="border-t pt-4">
-              <label className="form-label">Add Loom to Shed</label>
-              <select value={selectedShed} onChange={e => setSelectedShed(e.target.value)} className="form-field mb-2">
-                <option value="">Select Shed</option>
-                {sheds.map(s => <option key={s.id} value={s.id}>
-                    Shed {s.name}
-                  </option>)}
-              </select>
-              <input value={loomNum} onChange={e => setLoomNum(e.target.value)} placeholder="Loom Number" className="form-field mb-2" onKeyDown={e => e.key === "Enter" && addLoom()} />
-              <Button onClick={addLoom} className="w-full">
-                <Warehouse className="w-4 h-4" />
-                Add Loom to Shed
-              </Button>
-            </div>
+            )}
 
             {/* Sheds List */}
-            <div className="border-t pt-4">
+            <div className={isAdmin ? "border-t pt-4" : ""}>
               <p className="form-label mb-2">Current Sheds</p>
-              <div className="space-y-2">
-                {sheds.map(shed => <div key={shed.id} className="p-3 bg-muted rounded-lg">
-                    <p className="font-semibold text-foreground text-sm">Shed {shed.name}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {shed.looms.length} loom{shed.looms.length !== 1 ? "s" : ""}: {shed.looms.map(l => l.loom_number).join(", ") || "None"}
-                    </p>
-                  </div>)}
-              </div>
+              {isLoadingSheds ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {sheds.map((shed) => (
+                    <div key={shed.id} className="p-3 bg-muted rounded-lg">
+                      <p className="font-semibold text-foreground text-sm">Shed {shed.name}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {shed.looms.length} loom{shed.looms.length !== 1 ? "s" : ""}:{" "}
+                        {shed.looms.map((l) => l.loom_number).join(", ") || "None"}
+                      </p>
+                    </div>
+                  ))}
+                  {sheds.length === 0 && (
+                    <p className="text-center py-4 text-muted-foreground text-sm">No sheds found</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         {/* Quick Actions Section */}
-        <div className="card-elevated p-6 flex flex-col justify-center animate-slide-up" style={{
-        animationDelay: "0.3s"
-      }}>
+        <div
+          className="card-elevated p-6 flex flex-col justify-center animate-slide-up"
+          style={{ animationDelay: "0.3s" }}
+        >
           <div className="flex items-center gap-3 mb-5">
             <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center">
               <FileSpreadsheet className="w-5 h-5 text-success" />
@@ -359,5 +464,6 @@ export default function Dashboard() {
           summary={salaryData.summary}
         />
       )}
-    </div>;
+    </div>
+  );
 }
