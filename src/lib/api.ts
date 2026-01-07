@@ -1,0 +1,211 @@
+// API Configuration - Update this URL for production
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
+
+// Get the stored auth token
+const getAuthToken = (): string | null => {
+  return localStorage.getItem("asm_token");
+};
+
+// Generic fetch wrapper with auth
+async function fetchWithAuth<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const token = getAuthToken();
+  
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...options.headers,
+  };
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Request failed" }));
+    throw new Error(error.detail || `HTTP ${response.status}`);
+  }
+
+  return response.json();
+}
+
+// =====================
+// AUTH API
+// =====================
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+}
+
+export interface UserInfo {
+  status: string;
+  email: string;
+  role: string;
+  uid: string;
+}
+
+export const authApi = {
+  login: async (email: string, password: string): Promise<LoginResponse> => {
+    const formData = new URLSearchParams();
+    formData.append("username", email);
+    formData.append("password", password);
+
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Login failed" }));
+      throw new Error(error.detail || "Login failed");
+    }
+
+    return response.json();
+  },
+
+  getMe: async (): Promise<UserInfo> => {
+    return fetchWithAuth<UserInfo>("/auth/me");
+  },
+};
+
+// =====================
+// WORKERS API
+// =====================
+export interface Worker {
+  id: string;
+  name: string;
+  phone?: string;
+  is_active?: boolean;
+}
+
+export const workersApi = {
+  getAll: async (): Promise<Worker[]> => {
+    return fetchWithAuth<Worker[]>("/workers/");
+  },
+
+  create: async (data: { name: string; phone?: string }): Promise<Worker> => {
+    return fetchWithAuth<Worker>("/workers/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+// =====================
+// SHEDS & LOOMS API
+// =====================
+export interface Loom {
+  id: string;
+  loom_number: string;
+}
+
+export interface Shed {
+  id: string;
+  name: string;
+  looms: Loom[];
+}
+
+export const shedsApi = {
+  getHierarchy: async (): Promise<Shed[]> => {
+    return fetchWithAuth<Shed[]>("/sheds-looms/");
+  },
+
+  createShed: async (name: string): Promise<{ id: string; name: string }> => {
+    const response = await fetch(`${API_BASE_URL}/sheds/?name=${encodeURIComponent(name)}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${getAuthToken()}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to create shed" }));
+      throw new Error(error.detail || "Failed to create shed");
+    }
+
+    return response.json();
+  },
+
+  createLoom: async (shedId: string, loomNumber: string): Promise<Loom> => {
+    const response = await fetch(
+      `${API_BASE_URL}/looms/?shed_id=${encodeURIComponent(shedId)}&loom_num=${encodeURIComponent(loomNumber)}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${getAuthToken()}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to create loom" }));
+      throw new Error(error.detail || "Failed to create loom");
+    }
+
+    return response.json();
+  },
+};
+
+// =====================
+// PRODUCTION API
+// =====================
+export interface ProductionEntry {
+  worker_id: string;
+  loom_id: string;
+  shed_name: string;
+  loom_number: string;
+  date: string;
+  shift: "Day" | "Night";
+  meters: number;
+  rate: number;
+}
+
+export interface ProductionRecord {
+  id: string;
+  date: string;
+  shift: string;
+  meters: number;
+  loom: string;
+  loom_id: string;
+}
+
+export const productionApi = {
+  add: async (entry: ProductionEntry): Promise<ProductionRecord> => {
+    return fetchWithAuth<ProductionRecord>("/production/", {
+      method: "POST",
+      body: JSON.stringify(entry),
+    });
+  },
+};
+
+// =====================
+// SALARY API
+// =====================
+export interface SalaryDetail {
+  date: string;
+  shift: string;
+  meters: number;
+  loom: string;
+  loom_id: string;
+}
+
+export interface SalarySummary {
+  total_meters: number;
+  total_salary: number;
+}
+
+export interface SalaryResponse {
+  details: SalaryDetail[];
+  summary: SalarySummary;
+}
+
+export const salaryApi = {
+  calculate: async (workerId: string, startDate: string, endDate: string): Promise<SalaryResponse> => {
+    return fetchWithAuth<SalaryResponse>(
+      `/salary/calculate?worker_id=${encodeURIComponent(workerId)}&start_date=${startDate}&end_date=${endDate}`
+    );
+  },
+};
