@@ -9,6 +9,7 @@ import Navbar from "@/components/Navbar";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import SalaryEntry from "@/pages/SalaryEntry";
+import Workers from "@/pages/Workers";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +41,16 @@ const App = () => (
                 <ProtectedRoute>
                   <Navbar />
                   <SalaryEntry />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/workers"
+              element={
+                <ProtectedRoute>
+                  <Navbar />
+                  <Workers />
                 </ProtectedRoute>
               }
             />
