@@ -92,6 +92,19 @@ export const workersApi = {
       body: JSON.stringify(data),
     });
   },
+
+  update: async (id: string, data: { name?: string; phone?: string; is_active?: boolean }): Promise<Worker> => {
+    return fetchWithAuth<Worker>(`/workers/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+
+  delete: async (id: string): Promise<void> => {
+    return fetchWithAuth<void>(`/workers/${id}`, {
+      method: "DELETE",
+    });
+  },
 };
 
 // =====================

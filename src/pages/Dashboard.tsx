@@ -3,11 +3,12 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { SalarySlipModal } from "@/components/SalarySlipModal";
+import { DashboardCharts } from "@/components/DashboardCharts";
 import { useAuth } from "@/contexts/AuthContext";
 import { workersApi, shedsApi, salaryApi, Worker, Shed, SalaryResponse } from "@/lib/api";
 import { 
   Users, Plus, Warehouse, Settings2, FileSpreadsheet, ChevronRight, 
-  Calendar, Receipt, Loader2 
+  Calendar, Receipt, Loader2, BarChart3
 } from "lucide-react";
 
 export default function Dashboard() {
@@ -450,6 +451,20 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Analytics Section */}
+      <div className="mt-8">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+            <BarChart3 className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h2 className="font-bold text-lg text-foreground">Analytics</h2>
+            <p className="text-muted-foreground text-sm">Overview of your loom infrastructure</p>
+          </div>
+        </div>
+        <DashboardCharts sheds={sheds} workersCount={workers.length} />
       </div>
 
       {/* Salary Slip Modal */}

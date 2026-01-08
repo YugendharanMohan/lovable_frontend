@@ -1,12 +1,14 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Printer } from "lucide-react";
+import { Printer, Download } from "lucide-react";
+
 interface SalaryRecord {
   date: string;
   loom: string;
   meters: number;
   loom_id: string;
 }
+
 interface SalarySlipProps {
   isOpen: boolean;
   onClose: () => void;
@@ -19,6 +21,7 @@ interface SalarySlipProps {
     total_salary: number;
   };
 }
+
 export const SalarySlipModal = ({
   isOpen,
   onClose,
@@ -54,35 +57,154 @@ export const SalarySlipModal = ({
       loomTotals[rec.loom] += meters;
     }
   });
+
   const totalMeters = summary.total_meters || 0;
   const totalSalary = summary.total_salary || 0;
   const avgRate = totalMeters > 0 ? totalSalary / totalMeters : 0;
+
   const handlePrint = () => {
     window.print();
   };
+
+  const handleDownloadPDF = () => {
+    // Create a printable HTML content
+    const printContent = document.getElementById('salary-slip-printable');
+    if (!printContent) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Salary Slip - ${workerName}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+            .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+            .header h1 { font-size: 24px; margin-bottom: 5px; }
+            .header p { font-size: 12px; color: #666; }
+            .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; background: #f5f5f5; padding: 15px; border-radius: 8px; }
+            .info-grid span { font-size: 14px; }
+            .info-grid .label { color: #666; }
+            .info-grid .value { font-weight: bold; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+            th { background: #f0f0f0; font-weight: bold; }
+            .date-cell { font-weight: bold; background: #f9f9f9; }
+            .total-row { background: #e0e0e0; font-weight: bold; }
+            .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+            .summary-box { padding: 15px; border-radius: 8px; }
+            .loom-summary { background: #f5f5f5; }
+            .loom-summary table { margin-top: 10px; }
+            .grand-total { background: #e8f4e8; }
+            .grand-total h3 { margin-bottom: 10px; }
+            .grand-total .row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+            .grand-total .total-line { border-top: 2px solid #333; padding-top: 10px; font-size: 18px; }
+            .footer { text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>ASM BILLING</h1>
+            <p>Loom Management System - Salary Slip</p>
+          </div>
+          
+          <div class="info-grid">
+            <div><span class="label">Worker:</span> <span class="value">${workerName}</span></div>
+            <div><span class="label">Period:</span> <span class="value">${startDate} to ${endDate}</span></div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>DATE</th>
+                ${uniqueLooms.map(loom => `<th>${loom}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${uniqueDates.map(date => `
+                <tr>
+                  <td class="date-cell">${new Date(date).getDate()}/${new Date(date).getMonth() + 1}</td>
+                  ${uniqueLooms.map(loom => {
+                    const val = dateMap[date][loom];
+                    return `<td>${val > 0 ? val.toFixed(1) : '-'}</td>`;
+                  }).join('')}
+                </tr>
+              `).join('')}
+            </tbody>
+            <tfoot>
+              <tr class="total-row">
+                <td>TOTAL</td>
+                ${uniqueLooms.map(loom => `<td>${loomTotals[loom].toFixed(1)}</td>`).join('')}
+              </tr>
+            </tfoot>
+          </table>
+
+          <div class="summary">
+            <div class="summary-box loom-summary">
+              <h4>Loom Summary</h4>
+              <table>
+                <tbody>
+                  ${uniqueLooms.map(loom => `
+                    <tr>
+                      <td style="text-align: left; font-weight: bold;">${loom}</td>
+                      <td style="text-align: right;">${loomTotals[loom].toFixed(1)} m</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            
+            <div class="summary-box grand-total">
+              <h3>Payment Summary</h3>
+              <div class="row"><span>Total Meters:</span><span>${totalMeters.toFixed(2)} m</span></div>
+              <div class="row"><span>Rate per Meter:</span><span>₹ ${avgRate.toFixed(2)}</span></div>
+              <div class="row total-line"><span><strong>Total Salary:</strong></span><span><strong>₹ ${Math.round(totalSalary)}</strong></span></div>
+            </div>
+          </div>
+
+          <div class="footer">
+            <p>Generated on ${new Date().toLocaleDateString()}</p>
+          </div>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    
+    // Wait for content to load then trigger print (which allows save as PDF)
+    printWindow.onload = () => {
+      printWindow.print();
+    };
+  };
+
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
     return `${d.getDate()}/${d.getMonth() + 1}`;
   };
-  return <Dialog open={isOpen} onOpenChange={onClose}>
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto print:max-w-full print:max-h-full print:overflow-visible">
         <DialogHeader className="print:hidden">
           <DialogTitle className="flex items-center justify-between">
             <span>Salary Slip</span>
             <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleDownloadPDF}>
+                <Download className="h-4 w-4 mr-2" />
+                Download PDF
+              </Button>
               <Button variant="outline" size="sm" onClick={handlePrint}>
                 <Printer className="h-4 w-4 mr-2" />
                 Print
-              </Button>
-              <Button variant="ghost" size="sm" onClick={onClose}>
-                
               </Button>
             </div>
           </DialogTitle>
         </DialogHeader>
 
         {/* Printable Content */}
-        <div className="salary-slip-content p-4">
+        <div id="salary-slip-printable" className="salary-slip-content p-4">
           {/* Header */}
           
 
@@ -177,5 +299,6 @@ export const SalarySlipModal = ({
           </div>
         </div>
       </DialogContent>
-    </Dialog>;
+    </Dialog>
+  );
 };
