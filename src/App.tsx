@@ -10,6 +10,7 @@ import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import SalaryEntry from "@/pages/SalaryEntry";
 import Workers from "@/pages/Workers";
+import ProductionReports from "@/pages/ProductionReports";
 
 const queryClient = new QueryClient();
 
@@ -51,6 +52,16 @@ const App = () => (
                 <ProtectedRoute>
                   <Navbar />
                   <Workers />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/reports"
+              element={
+                <ProtectedRoute>
+                  <Navbar />
+                  <ProductionReports />
                 </ProtectedRoute>
               }
             />
