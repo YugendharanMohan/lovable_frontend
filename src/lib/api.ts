@@ -185,12 +185,50 @@ export interface ProductionRecord {
   loom_id: string;
 }
 
+export interface ProductionHistoryItem {
+  id: string;
+  worker_id: string;
+  worker_name: string;
+  loom_id: string;
+  loom_number: string;
+  shed_name: string;
+  date: string;
+  shift: "Day" | "Night";
+  meters: number;
+  rate: number;
+  earnings: number;
+}
+
+export interface ProductionAnalytics {
+  daily_production: { date: string; meters: number; earnings: number }[];
+  top_performers: { worker_id: string; worker_name: string; total_meters: number; total_earnings: number }[];
+  loom_utilization: { loom_id: string; loom_number: string; shed_name: string; total_meters: number; usage_count: number }[];
+  summary: {
+    total_meters: number;
+    total_earnings: number;
+    avg_daily_meters: number;
+    active_workers: number;
+    active_looms: number;
+  };
+}
+
 export const productionApi = {
   add: async (entry: ProductionEntry): Promise<ProductionRecord> => {
     return fetchWithAuth<ProductionRecord>("/production/", {
       method: "POST",
       body: JSON.stringify(entry),
     });
+  },
+
+  getHistory: async (startDate: string, endDate: string, workerId?: string, loomId?: string): Promise<ProductionHistoryItem[]> => {
+    const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+    if (workerId) params.append("worker_id", workerId);
+    if (loomId) params.append("loom_id", loomId);
+    return fetchWithAuth<ProductionHistoryItem[]>(`/production/history?${params.toString()}`);
+  },
+
+  getAnalytics: async (startDate: string, endDate: string): Promise<ProductionAnalytics> => {
+    return fetchWithAuth<ProductionAnalytics>(`/production/analytics?start_date=${startDate}&end_date=${endDate}`);
   },
 };
 

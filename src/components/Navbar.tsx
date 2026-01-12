@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { LayoutDashboard, FileSpreadsheet, LogOut, Factory, Users } from "lucide-react";
+import { LayoutDashboard, FileSpreadsheet, LogOut, Factory, Users, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function Navbar() {
@@ -16,6 +16,7 @@ export default function Navbar() {
   const navLinks = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/workers", label: "Workers", icon: Users },
+    { to: "/reports", label: "Reports", icon: BarChart3 },
     { to: "/salary-entry", label: "Meter Entry", icon: FileSpreadsheet },
   ];
 
