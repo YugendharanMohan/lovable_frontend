@@ -212,11 +212,35 @@ export interface ProductionAnalytics {
   };
 }
 
+export interface ProductionUpdateEntry {
+  worker_id?: string;
+  loom_id?: string;
+  shed_name?: string;
+  loom_number?: string;
+  date?: string;
+  shift?: "Day" | "Night";
+  meters?: number;
+  rate?: number;
+}
+
 export const productionApi = {
   add: async (entry: ProductionEntry): Promise<ProductionRecord> => {
     return fetchWithAuth<ProductionRecord>("/production/", {
       method: "POST",
       body: JSON.stringify(entry),
+    });
+  },
+
+  update: async (id: string, data: ProductionUpdateEntry): Promise<ProductionHistoryItem> => {
+    return fetchWithAuth<ProductionHistoryItem>(`/production/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+
+  delete: async (id: string): Promise<void> => {
+    return fetchWithAuth<void>(`/production/${id}`, {
+      method: "DELETE",
     });
   },
 

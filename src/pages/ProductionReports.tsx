@@ -3,12 +3,14 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { 
   productionApi, workersApi, shedsApi,
-  ProductionHistoryItem, Worker, Shed 
+  ProductionHistoryItem, ProductionUpdateEntry, Worker, Shed 
 } from "@/lib/api";
 import { ProductionCharts } from "@/components/ProductionCharts";
+import { ProductionEditModal } from "@/components/ProductionEditModal";
+import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import {
   Calendar, FileText, Download, Loader2, Filter, 
-  TrendingUp, Search, X
+  TrendingUp, Search, X, Edit2, Trash2
 } from "lucide-react";
 import {
   Table,
@@ -46,6 +48,11 @@ export default function ProductionReports() {
   const [sheds, setSheds] = useState<Shed[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingFilters, setIsLoadingFilters] = useState(true);
+
+  // Edit/Delete modal state
+  const [editEntry, setEditEntry] = useState<ProductionHistoryItem | null>(null);
+  const [deleteEntry, setDeleteEntry] = useState<ProductionHistoryItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Fetch filter options
   useEffect(() => {
@@ -122,6 +129,49 @@ export default function ProductionReports() {
     setSelectedWorker("");
     setSelectedLoom("");
     setSearchTerm("");
+  };
+
+  // Handle edit save
+  const handleEditSave = async (id: string, data: ProductionUpdateEntry) => {
+    try {
+      await productionApi.update(id, data);
+      toast({
+        title: "Entry Updated",
+        description: "Production entry has been updated successfully.",
+      });
+      fetchHistory();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update entry.",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  // Handle delete
+  const handleDelete = async () => {
+    if (!deleteEntry) return;
+    
+    try {
+      setIsDeleting(true);
+      await productionApi.delete(deleteEntry.id);
+      toast({
+        title: "Entry Deleted",
+        description: "Production entry has been deleted.",
+      });
+      setDeleteEntry(null);
+      fetchHistory();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete entry.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Export to PDF
@@ -203,7 +253,7 @@ export default function ProductionReports() {
             Production Reports
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            View and analyze production history with filters and charts
+            View, edit, and analyze production history with filters and charts
           </p>
         </div>
         <Button onClick={exportToPDF} disabled={filteredHistory.length === 0}>
@@ -350,6 +400,7 @@ export default function ProductionReports() {
                     <TableHead className="text-right">Meters</TableHead>
                     <TableHead className="text-right">Rate</TableHead>
                     <TableHead className="text-right">Earnings</TableHead>
+                    <TableHead className="w-24">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -375,6 +426,26 @@ export default function ProductionReports() {
                       <TableCell className="text-right font-semibold">
                         ₹{item.earnings.toFixed(2)}
                       </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setEditEntry(item)}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => setDeleteEntry(item)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -397,6 +468,26 @@ export default function ProductionReports() {
           </>
         )}
       </div>
+
+      {/* Edit Modal */}
+      <ProductionEditModal
+        entry={editEntry}
+        open={!!editEntry}
+        onClose={() => setEditEntry(null)}
+        onSave={handleEditSave}
+        workers={workers}
+        sheds={sheds}
+      />
+
+      {/* Delete Confirmation */}
+      <DeleteConfirmDialog
+        open={!!deleteEntry}
+        onClose={() => setDeleteEntry(null)}
+        onConfirm={handleDelete}
+        title="Delete Production Entry"
+        description={`Are you sure you want to delete this entry for ${deleteEntry?.worker_name} on ${deleteEntry?.date}? This action cannot be undone.`}
+        isDeleting={isDeleting}
+      />
     </div>
   );
 }
