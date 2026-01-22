@@ -11,6 +11,7 @@ import Dashboard from "@/pages/Dashboard";
 import SalaryEntry from "@/pages/SalaryEntry";
 import Workers from "@/pages/Workers";
 import ProductionReports from "@/pages/ProductionReports";
+import Install from "@/pages/Install";
 
 const queryClient = new QueryClient();
 
@@ -22,8 +23,9 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            {/* Public Route: Login */}
+            {/* Public Routes */}
             <Route path="/" element={<Login />} />
+            <Route path="/install" element={<Install />} />
 
             {/* Protected Routes with Navbar */}
             <Route
